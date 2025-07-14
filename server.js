@@ -1,70 +1,93 @@
 const express = require('express');
-const fs = require('fs');
+const mongoose = require('mongoose');
 const path = require('path');
 const app = express();
 const PORT = 3000;
 
-const FILE = path.join(__dirname, 'data.json');
+// Connect to MongoDB Atlas
+mongoose.connect('mongodb+srv://admin:tuttiperesperanza1919@reservations.wboeh7b.mongodb.net/?retryWrites=true&w=majority&appName=reservations', {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+})
+.then(() => console.log('✅ Connected to MongoDB'))
+.catch(err => console.error('❌ MongoDB connection error:', err));
 
-// Middlewares
+// Reservation schema
+const reservationSchema = new mongoose.Schema({
+  name: String,
+  phone: String,
+  date: String,
+  time: String,
+  field: String
+});
+
+const Reservation = mongoose.model('Reservation', reservationSchema);
+
+// Middleware
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
-// Get reservations
-app.get('/reservations', (req, res) => {
-  const data = fs.existsSync(FILE) ? JSON.parse(fs.readFileSync(FILE)) : [];
-  res.json(data);
+// Get all reservations
+app.get('/reservations', async (req, res) => {
+  try {
+    const data = await Reservation.find();
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
 });
 
 // Add a reservation
-app.post('/reserve', (req, res) => {
+app.post('/reserve', async (req, res) => {
   const newRes = req.body;
 
-  // Validate input, now including field
   if (!newRes.name || !newRes.phone || !newRes.date || !newRes.time || !newRes.field) {
     return res.status(400).json({ message: 'Missing data' });
   }
 
-  const data = fs.existsSync(FILE) ? JSON.parse(fs.readFileSync(FILE)) : [];
-
   const newStart = new Date(`${newRes.date}T${newRes.time}`);
   const newEnd = new Date(newStart.getTime() + 90 * 60000); // 1h30
 
-  // Check conflicts only on the same field
-  const conflict = data.some(r => {
-    if (r.field !== newRes.field) return false; // different field, ignore
-    const rStart = new Date(`${r.date}T${r.time}`);
-    const rEnd = new Date(rStart.getTime() + 90 * 60000);
-    return (newStart < rEnd && newEnd > rStart);
-  });
+  try {
+    const existing = await Reservation.find({ field: newRes.field, date: newRes.date });
 
-  if (conflict) {
-    return res.status(409).json({ message: 'Slot already reserved on this field' });
+    const conflict = existing.some(r => {
+      const rStart = new Date(`${r.date}T${r.time}`);
+      const rEnd = new Date(rStart.getTime() + 90 * 60000);
+      return newStart < rEnd && newEnd > rStart;
+    });
+
+    if (conflict) {
+      return res.status(409).json({ message: 'Slot already reserved on this field' });
+    }
+
+    const saved = new Reservation(newRes);
+    await saved.save();
+
+    res.status(201).json({ message: 'Reservation saved' });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
   }
-
-  data.push(newRes);
-  fs.writeFileSync(FILE, JSON.stringify(data, null, 2));
-  res.status(201).json({ message: 'Reservation saved' });
 });
 
 // Delete a reservation
-app.delete('/delete', (req, res) => {
+app.delete('/delete', async (req, res) => {
   const { date, time, field } = req.body;
   if (!date || !time || !field) {
     return res.status(400).json({ message: 'Missing date, time, or field' });
   }
 
-  let data = fs.existsSync(FILE) ? JSON.parse(fs.readFileSync(FILE)) : [];
-  const initialLength = data.length;
+  try {
+    const result = await Reservation.findOneAndDelete({ date, time, field });
 
-  data = data.filter(r => !(r.date === date && r.time === time && r.field === field));
+    if (!result) {
+      return res.status(404).json({ message: 'Reservation not found' });
+    }
 
-  if (data.length === initialLength) {
-    return res.status(404).json({ message: 'Reservation not found' });
+    res.status(200).json({ message: 'Reservation deleted' });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
   }
-
-  fs.writeFileSync(FILE, JSON.stringify(data, null, 2));
-  res.status(200).json({ message: 'Reservation deleted' });
 });
 
 // Start server
