@@ -1,0 +1,64 @@
+/* General Styles */
+body {
+  margin: 0;
+  padding: 40px 20px;
+  font-family: 'Segoe UI', sans-serif;
+  background-color: #f8fafc; /* Light gray background */
+  color: #1e293b; /* Slate color for text */
+  line-height: 1.6;
+}
+
+/* Headings */
+h2 {
+  color: #1e3a8a; /* Blue-900 */
+  font-size: 28px;
+  margin-top: 40px;
+  margin-bottom: 15px;
+  border-left: 6px solid #3b82f6;
+  padding-left: 10px;
+}
+
+/* Paragraphs */
+p {
+  font-size: 18px;
+  margin-bottom: 20px;
+  color: #334155; /* Slightly darker slate */
+}
+
+/* Image Styling */
+img {
+  width: 100%;
+  max-width: 500px;
+  margin: 10px 10px 20px 0;
+  border-radius: 10px;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  transition: transform 0.3s ease;
+}
+
+img:hover {
+  transform: scale(1.03);
+}
+
+/* Link Styling */
+a {
+  display: inline-block;
+  font-size: 18px;
+  color: #2563eb; /* Blue-600 */
+  text-decoration: none;
+  margin-bottom: 20px;
+  font-weight: bold;
+  margin-left:300px
+}
+
+a:hover {
+  text-decoration: underline;
+  color: #1d4ed8; /* Blue-700 */
+}
+
+/* Optional Container */
+body > * {
+  max-width: 800px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
