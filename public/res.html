@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en" >
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Golden Talents Academy - Réservations</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 text-gray-800 font-sans">
+
+  <!-- Header -->
+  <div class="bg-blue-900 text-white text-center py-6 shadow-md">
+    <h1 class="text-3xl font-bold">Golden Talents Academy</h1>
+    <ul class="flex justify-center space-x-8 mt-4">
+      <li><a href="index.html" class="hover:underline">À propos</a></li>
+      <li><a href="res.html" class="hover:underline font-bold">Réserver</a></li>
+    </ul>
+  </div>
+
+  <!-- Reservation Form -->
+  <div class="bg-white rounded shadow-md p-6 max-w-2xl mx-auto mt-6">
+    <form id="reservationForm">
+      <h2 class="text-xl font-semibold mb-4">Faites votre réservation</h2>
+
+      <div class="mb-4">
+        <label for="field" class="block font-medium mb-1">Choisissez un terrain</label>
+        <select id="field" required class="border p-2 w-full rounded">
+          <option value="" disabled selected>Sélectionnez un terrain</option>
+          <option value="6v6">Terrain 6 contre 6</option>
+          <option value="7v7">Terrain 7 contre 7</option>
+        </select>
+      </div>
+
+      <div class="mb-4">
+        <label for="nom" class="block font-medium">Nom et Prénom</label>
+        <input id="nom" type="text" required class="border p-2 w-full rounded" />
+      </div>
+
+      <div class="mb-4">
+        <label for="num" class="block font-medium">Numéro de téléphone</label>
+        <input id="num" type="tel" required class="border p-2 w-full rounded" />
+      </div>
+
+      <div class="mb-4">
+        <label for="date" class="block font-medium">La date</label>
+        <input id="date" type="date" required class="border p-2 w-full rounded" />
+      </div>
+
+      <div class="mb-4">
+        <label for="time" class="block font-medium">Heure de début</label>
+        <input id="time" type="time" required class="border p-2 w-full rounded" step="1800" />
+        <p class="text-sm text-gray-500">Les réservations durent 1h30</p>
+      </div>
+
+      <button type="submit" class="bg-blue-800 hover:bg-blue-900 text-white px-4 py-2 rounded">Confirmer</button>
+    </form>
+  </div>
+
+  <!-- Reservations List -->
+  <div class="bg-white rounded shadow-md p-6 max-w-4xl mx-auto mt-6">
+    <h2 class="text-xl font-semibold mb-4">Réservations</h2>
+    <ul id="reservationsList" class="space-y-4"></ul>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const form = document.getElementById('reservationForm');
+      const reservationsList = document.getElementById('reservationsList');
+
+      // Admin mode? Add delete buttons if URL contains ?admin=1
+      const isAdmin = new URLSearchParams(window.location.search).get('admin') === '1';
+
+      async function fetchReservations() {
+        try {
+          const res = await fetch('/reservations');
+          const reservations = await res.json();
+          displayReservations(reservations);
+        } catch (error) {
+          reservationsList.innerHTML = '<p class="text-red-600">Erreur lors du chargement des réservations.</p>';
+          console.error(error);
+        }
+      }
+
+      function displayReservations(reservations) {
+        reservationsList.innerHTML = '';
+
+        if (!reservations.length) {
+          reservationsList.innerHTML = '<p class="text-gray-500">Aucune réservation.</p>';
+          return;
+        }
+
+        // Sort by date + time ascending
+        reservations.sort((a, b) => new Date(`${a.date}T${a.time}`) - new Date(`${b.date}T${b.time}`));
+
+        reservations.forEach(res => {
+          const [h, m] = res.time.split(':');
+          const end = new Date(0, 0, 0, h, m);
+          end.setMinutes(end.getMinutes() + 90);
+          const endTime = end.toTimeString().substring(0, 5);
+
+          const li = document.createElement('li');
+          li.className = 'border-l-4 border-blue-800 bg-gray-100 p-4 rounded';
+
+          li.innerHTML = `
+            <h3 class="font-bold">${res.name} (${res.field || 'Terrain inconnu'})</h3>
+            <p>Date: ${res.date}</p>
+            <p>Heure: ${res.time} - ${endTime}</p>
+            <p>Téléphone: ${res.phone}</p>
+            ${isAdmin ? `<button class="mt-2 bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded delete-btn" 
+              data-date="${res.date}" data-time="${res.time}" data-field="${res.field}">Supprimer</button>` : ''}
+          `;
+
+          reservationsList.appendChild(li);
+        });
+
+        if (isAdmin) {
+          document.querySelectorAll('.delete-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+              const date = btn.dataset.date;
+              const time = btn.dataset.time;
+              const field = btn.dataset.field;
+
+              if (confirm("Supprimer cette réservation ?")) {
+                const res = await fetch('/delete', {
+                  method: 'DELETE',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ date, time, field })
+                });
+
+                if (res.ok) {
+                  fetchReservations();
+                } else {
+                  alert("Erreur lors de la suppression.");
+                }
+              }
+            });
+          });
+        }
+      }
+
+      form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+
+        const reservation = {
+          field: document.getElementById('field').value,
+          name: document.getElementById('nom').value,
+          phone: document.getElementById('num').value,
+          date: document.getElementById('date').value,
+          time: document.getElementById('time').value
+        };
+
+        if (!reservation.field) {
+          alert("Veuillez choisir un terrain.");
+          return;
+        }
+
+        try {
+          const res = await fetch('/reserve', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(reservation)
+          });
+
+          if (res.status === 409) {
+            alert("Ce créneau est déjà réservé pour ce terrain.");
+          } else if (res.ok) {
+            alert("Réservation confirmée !");
+            form.reset();
+            fetchReservations();
+          } else {
+            alert("Erreur lors de la réservation.");
+          }
+        } catch (error) {
+          alert("Erreur réseau.");
+          console.error(error);
+        }
+      });
+
+      // Set minimum date to today
+      const today = new Date().toISOString().split('T')[0];
+      document.getElementById('date').min = today;
+
+      fetchReservations();
+    });
+  </script>
+</body>
+</html>
